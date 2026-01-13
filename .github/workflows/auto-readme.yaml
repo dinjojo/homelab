@@ -25,7 +25,10 @@ jobs:
           echo "" >> README.md
           echo "This README is auto-generated." >> README.md
           echo "" >> README.md
+          echo '```' >> README.md
           tree -L 3 >> README.md
+          echo '```' >> README.md
+
 
       - name: Commit README changes
         run: |
