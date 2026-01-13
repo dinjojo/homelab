@@ -1,0 +1,269 @@
+services:
+  radarr:
+    container_name: radarr
+    image: ghcr.io/hotio/radarr:latest
+    restart: unless-stopped
+    logging:
+      driver: json-file
+    ports:
+      - 7878:7878
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /docker/appdata/radarr:/config
+      - /media/usbhd/data:/data
+      - /mnt/remote/realdebrid:/mount
+      - /mnt/symlinks:/data/downloads
+      - /mnt/:/mnt/
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+  sonar:
+    container_name: sonarr
+      #    image: ghcr.io/hotio/sonarr:latest
+    image: ghcr.io/hotio/sonarr:nightly
+    restart: unless-stopped
+    logging:
+      driver: json-file
+    ports:
+      - 8989:8989
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /docker/appdata/sonarr:/config
+      - /media/usbhd/data:/data
+      - /mnt/remote/realdebrid:/mount
+      - /mnt/symlinks:/data/downloads
+      - /mnt/:/mnt/
+      - /usr/bin/rclone:/usr/bin/rclone
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - rclone
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /docker/appdata/prowlarr:/config
+      - /docker/appdata/prowlarr/config/Definitions/Custom:/config/Definitions/Custom
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+    depends_on:
+      - rclone
+  qbittorrent:
+    image: ghcr.io/hotio/qbittorrent
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=Asia/Kolkata
+      - WEBUI_PORT=8080
+    volumes:
+      - /docker/appdata/qbittorrent:/config
+      - /media/usbhd/data/torrents:/data/torrents
+    ports:
+      - 8999:8080
+
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+  plex:
+    image: ghcr.io/hotio/plex
+    container_name: plex
+    ports:
+      - "32400:32400"
+      - '1900:1900/udp'
+      - '3005:3005'
+      - '5353:5353/udp'
+      - '8324:8324'
+      - '32410:32410/udp'
+      - '32412:32412/udp'
+      - '32413:32413/udp'
+      - '32414:32414/udp'
+      - '32469:32469'
+    devices:
+      - '/dev/dri:/dev/dri'
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - VERSION=latest
+      - TZ=Asia/Kolkata
+      - PLEX_CLAIM=claim-
+      - 'ADVERTISE_IP=http://192.168.1.111:32400/'
+    volumes:
+      - /docker/appdata/plex:/config
+      - /media/usbhd/data/media:/data/media
+      - /dev/shm:/transcode
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+        #  - /mnt/zurg/movies:/movies
+        #      - /mnt/symlinks:/mount
+      - /mnt/remote/realdebrid:/mount
+      - /mnt:/rd_movies
+      - /home/tiny/movies:/localdrive
+      - /mnt/gdrive:/gdrive:ro
+    restart: unless-stopped
+    depends_on:
+      - rclone
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+      - DOCKER_MODS=linuxserver/mods:jellyfin-opencl-intel
+    devices:
+      - '/dev/dri:/dev/dri'
+    volumes:
+      - /docker/appdata/jellyfin/:/config
+      - /media/usbhd/data/media:/data/media
+      - /mnt/remote/realdebrid:/mount
+      - /mnt:/rd_movies
+    ports:
+      - 8096:8096
+      - 8920:8920 #optional
+      - 7359:7359/udp #optional
+    restart: unless-stopped
+
+  rclone:
+    container_name: rclone
+    image: rclone/rclone:latest
+    restart: unless-stopped
+    hostname: realdebrid
+    environment:
+      TZ: Asia/Kolkata
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - /mnt/remote/realdebrid:/data:rshared
+      - ./rclone.conf:/config/rclone/rclone.conf
+      - /mnt:/mnt
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    devices:
+      - /dev/fuse:/dev/fuse:rwm
+    depends_on:
+      zurg:
+        condition: service_healthy
+        restart: true
+    command: "mount zurg: /data --allow-non-empty --allow-other --uid=1000 --gid=1000 --umask=002 --dir-cache-time 10s --rc --rc-addr=realdebrid:5572 --rc-web-gui --rc-no-auth"
+  zurg:
+    container_name: zurg
+    image: ghcr.io/debridmediamanager/zurg-testing:latest
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Kolkata
+    ports:
+      - 9999:9999
+    volumes:
+      - ./config.yml:/app/config.yml
+      - zurgdata:/app/data
+
+  rdtclient:
+      image: laster13/rdtclient-v39:latest
+        # image: rogerfar/rdtclient
+      container_name: rdtclient
+      environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Asia/Kolkata
+      restart: unless-stopped
+      volumes:
+        - /docker/appdata/rdtclient/config:/data/config
+        - /docker/appdata/rdtclient/db:/data/db
+        - /docker/appdata/rdtclient:/data
+        - /mnt/remote/realdebrid:/mount
+        - /mnt/symlinks:/data/downloads
+        - /usr/bin/rclone:/usr/bin/rclone
+        - /mnt:/mnt
+      logging:
+          driver: json-file
+          options:
+              max-size: 10m
+      ports:
+          - '6500:6500'
+      healthcheck:
+          test: curl --fail http://localhost:6500 || exit 1
+          interval: 30s
+          retries: 3
+          start_period: 30s
+          timeout: 30s
+      depends_on:
+          - rclone
+
+  rclone-gdrive:
+    container_name: rclone-gdrive
+    image: rclone/rclone:latest
+    restart: unless-stopped
+    init: true
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    environment:
+      TZ: Asia/Kolkata
+      PUID: 1000
+      PGID: 1000
+    devices:
+      - /dev/fuse:/dev/fuse:rwm
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      # Mount Google Drive to this host path
+      - /mnt/gdrive:/gdata:shared
+      # Share the same rclone config directory
+      - /root/config/rclone:/config/rclone
+      # Dedicated cache for Google Drive
+      - /var/cache/rclone-gdrive:/cache
+      # User/group resolution
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
+      - /etc/fuse.conf:/etc/fuse.conf:ro
+    command: >
+      mount gdrive: /gdata
+      --vfs-cache-mode writes
+      --vfs-cache-max-size 100G
+      --vfs-cache-max-age 168h
+      --vfs-cache-poll-interval 1m
+      --dir-cache-time 48h
+      --poll-interval 10m
+      --buffer-size 64M
+      --vfs-read-chunk-size 128M
+      --vfs-read-chunk-size-limit off
+      --umask 002
+      --allow-other
+      --cache-dir /cache
+      --allow-non-empty
+      --uid 1000
+      --gid 1000
+      --log-level DEBUG
+  autoscan:
+    image: ghcr.io/hotio/autoscan
+    container_name: autoscan
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /docker/appdata/autoscan:/config
+      - /mnt/gdrive:/gdrive:ro
+    restart: unless-stopped
+    depends_on:
+      - plex
+      - rclone-gdrive
+
+volumes:
+  zurgdata:
