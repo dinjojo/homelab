@@ -1,39 +1,53 @@
-name: Auto Update README
+name: Auto Update README Inventory
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - "**"
-      - "!README.md"
+    branches: [main]
+    paths-ignore:
+      - README.md
 
 permissions:
   contents: write
 
 jobs:
-  update-readme:
+  inventory:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Generate README
+      - name: Generate inventory
         run: |
-          echo "# Repository Contents" > README.md
-          echo "" >> README.md
-          echo "This README is auto-generated." >> README.md
-          echo "" >> README.md
-          echo '```' >> README.md
-          tree -L 3 >> README.md
-          echo '```' >> README.md
+          INVENTORY=$(cat <<'EOF'
+### Files
 
+| File | Purpose |
+|-----|--------|
+| `adguardhome.yaml` | AdGuard Home DNS + ad blocking configuration |
+| `arr_services.yaml` | *Arr stack services (Sonarr, Radarr, etc.) |
+EOF
+          )
 
-      - name: Commit README changes
+          awk -v block="$INVENTORY" '
+          BEGIN {inblock=0}
+          /<!-- AUTO-GENERATED:START -->/ {
+            print
+            print block
+            inblock=1
+            next
+          }
+          /<!-- AUTO-GENERATED:END -->/ {
+            inblock=0
+          }
+          !inblock {print}
+          ' README.md > README.new
+
+          mv README.new README.md
+
+      - name: Commit changes
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add README.md
-          git diff --cached --quiet || git commit -m "chore: auto-update README"
+          git diff --cached --quiet || git commit -m "chore: update inventory"
           git push
